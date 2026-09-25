@@ -1,112 +1,137 @@
-# AI StudyBuddy API
+# AI FAQ Assistant API
 
-An AI-powered educational backend built with **Node.js, Express, MongoDB, and Gemini 2.5 Flash**.
+The **AI FAQ Assistant API** is a robust RESTful backend application designed to enable users to create and manage FAQs while leveraging Google Gemini AI (`gemini-2.0-flash`) to generate answers to arbitrary user questions and automatically generate structured FAQ question-and-answer pairs.
 
-## Features
-- JWT auth stored in **HTTP-only cookies** (access + refresh tokens)
-- Role-Based Access Control (student / admin)
-- Upload study materials (.txt, .md, .pdf)
-- AI-powered: summarize, flashcards, quiz, study plan via Gemini 2.5 Flash
+The project is built using **Node.js, Express.js, MongoDB (via Mongoose), JWT Authentication, bcrypt, and the official Google Gemini SDK (`@google/genai`)**. It follows the standard **MVC (Model-View-Controller) Architecture**.
 
 ---
 
-## Setup
+## Features
 
-### 1. Install dependencies
+1.  **User Authentication**:
+    *   **User Registration**: Hashes passwords securely using `bcrypt` (10 rounds) and prevents duplicate email registration.
+    *   **User Login**: Authenticates credentials and issues secure JWT tokens.
+    *   **User Profile**: Private endpoint to retrieve details of the currently logged-in user.
+2.  **FAQ Management**:
+    *   **Full CRUD Operations**: Private endpoints for creating, updating, and deleting FAQs (with owner verification), and public endpoints for reading them.
+    *   **Category Constraints**: Valid categories are strictly validated: `Technology`, `Education`, `Health`, `Banking`, `General`.
+3.  **AI Answer Generator (Google Gemini)**:
+    *   **Answer Endpoint**: Provides direct, concise answers using the state-of-the-art `gemini-2.0-flash` model.
+4.  **AI FAQ Generator (Google Gemini)**:
+    *   **Structured FAQ Generation**: Takes a topic and generates a perfectly structured FAQ pair (`question` & `answer`) using Gemini's Structured JSON outputs (guaranteeing exact schema compliance).
+5.  **FAQ Search**:
+    *   **Regex Keyword Search**: Efficiently searches across questions, answers, and categories using MongoDB regex matching.
+6.  **Security**:
+    *   JWT Token verification middleware.
+    *   Input validation before controller handling.
+    *   Centralized error handling middleware covering Mongoose validations, CastErrors, and duplicate key issues.
+
+---
+
+## Directory Structure
+
+```
+src/
+├── config/
+│   └── db.js                 # MongoDB connection configuration
+├── controllers/
+│   ├── aiController.js       # Bridges Gemini API services with requests
+│   ├── authController.js     # Manages registration, login, and profiles
+│   └── faqController.js      # Handles FAQ CRUD and search operations
+├── middleware/
+│   ├── authMiddleware.js     # JWT token verification
+│   ├── errorMiddleware.js    # Formats and returns centralized errors
+│   └── validationMiddleware.js # Sanitizes and validates request bodies
+├── models/
+│   ├── FAQ.js                # FAQ database schema & rules
+│   └── User.js               # User database schema & password hashing
+├── routes/
+│   ├── aiRoutes.js           # Router configuration for AI endpoints
+│   ├── authRoutes.js         # Router configuration for auth endpoints
+│   └── faqRoutes.js          # Router configuration for FAQ endpoints
+├── services/
+│   └── geminiService.js      # Manages Google Gen AI SDK integration
+├── utils/
+│   └── helpers.js            # General backend helper utilities
+├── app.js                    # Express app configuration
+└── server.js                 # Database connection and server listener
+```
+
+---
+
+## Installation & Setup
+
+### 1. Prerequisites
+*   **Node.js**: Version 18+ or 20+
+*   **MongoDB**: Local installation or MongoDB Atlas cluster connection string
+*   **Google Gemini API Key**: Obtainable from [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+### 2. Install Dependencies
+Clone or copy the project files to your directory and run:
 ```bash
 npm install
 ```
 
-### 2. Create `.env` file
+### 3. Configure Environment Variables
+Create a `.env` file in the root directory (or use the provided template):
 ```env
 PORT=5000
-MONGO_URI=mongodb://localhost:27017/ai-studybuddy
-JWT_ACCESS_SECRET=your_access_secret_here
-JWT_REFRESH_SECRET=your_refresh_secret_here
-GEMINI_API_KEY=your_gemini_api_key_here
-NODE_ENV=development
+MONGO_URI=mongodb://127.0.0.1:27017/ai_faq_assistant
+JWT_SECRET=your_jwt_secret_key_here_must_be_long_and_secure
+GEMINI_API_KEY=your_google_gemini_api_key_here
 ```
 
-### 3. Run the server
-```bash
-node index.js
-```
-
----
-
-## Project Structure
-```
-ai-studybuddy/
-├── index.js                     # Entry point
-├── uploads/                     # Temp file storage
-└── src/
-    ├── controllers/
-    │   ├── authController.js    # register, login, refresh, logout
-    │   ├── materialController.js# upload + all AI features
-    │   └── adminController.js   # admin-only routes
-    ├── middleware/
-    │   ├── auth.js              # protect + adminOnly
-    │   └── upload.js            # multer config
-    ├── models/
-    │   ├── User.js
-    │   └── Material.js
-    ├── routes/
-    │   ├── auth.js
-    │   ├── materials.js
-    │   └── admin.js
-    └── utils/
-        ├── db.js                # MongoDB connection
-        ├── gemini.js            # Gemini AI helper
-        └── tokens.js            # JWT + cookie helpers
-```
+### 4. Run the Application
+*   **Development Mode** (auto-reloads on changes using native Node.js watch flag):
+    ```bash
+    npm run dev
+    ```
+*   **Production Mode**:
+    ```bash
+    npm start
+    ```
 
 ---
 
 ## API Reference
 
-### Auth Routes — `/api/auth`
+### 1. Authentication
+*   **Register User** (`POST /api/auth/register`)
+    *   *Payload*: `{ "name": "John Doe", "email": "john@gmail.com", "password": "123456" }`
+*   **Login User** (`POST /api/auth/login`)
+    *   *Payload*: `{ "email": "john@gmail.com", "password": "123456" }`
+    *   *Returns*: User object + JWT `token`.
+*   **Get Profile** (`GET /api/auth/profile`) - *Protected*
+    *   *Header*: `Authorization: Bearer <token>`
 
-| Method | Endpoint    | Body                              | Description          |
-|--------|-------------|-----------------------------------|----------------------|
-| POST   | /register   | `name, email, password, role`     | Register new user    |
-| POST   | /login      | `email, password`                 | Login                |
-| POST   | /refresh    | —                                 | Refresh tokens       |
-| POST   | /logout     | —                                 | Clear cookies        |
+### 2. FAQ Management
+*   **Create FAQ** (`POST /api/faqs`) - *Protected*
+    *   *Payload*: `{ "question": "What is Node?", "answer": "Node is a JS runtime.", "category": "Technology" }`
+*   **Get All FAQs** (`GET /api/faqs`)
+*   **Get FAQ by ID** (`GET /api/faqs/:id`)
+*   **Update FAQ** (`PUT /api/faqs/:id`) - *Protected (Creator only)*
+    *   *Payload*: `{ "question": "Updated Question", "answer": "Updated Answer" }`
+*   **Delete FAQ** (`DELETE /api/faqs/:id`) - *Protected (Creator only)*
+*   **Search FAQs** (`GET /api/faqs/search?q=query_string`)
+    *   *Query Parameters*: `q` (keyword search)
 
-> Tokens are stored in **HTTP-only cookies** (`accessToken` expires in 15m, `refreshToken` in 7d)
-
----
-
-### Material Routes — `/api/materials` *(requires login)*
-
-| Method | Endpoint              | Body / Notes                          | Description              |
-|--------|-----------------------|---------------------------------------|--------------------------|
-| POST   | /upload               | Form-data: `file` + optional `title`  | Upload study material    |
-| GET    | /                     | —                                     | List your materials      |
-| GET    | /:id                  | —                                     | Get one material         |
-| DELETE | /:id                  | —                                     | Delete material          |
-| POST   | /:id/summarize        | —                                     | AI summarize             |
-| POST   | /:id/flashcards       | `{ count: 5 }`                        | Generate flashcards      |
-| POST   | /:id/quiz             | `{ count: 5 }`                        | Generate MCQ quiz        |
-| POST   | /:id/study-plan       | `{ goal, hoursPerDay, days }`         | Personalized study plan  |
-
----
-
-### Admin Routes — `/api/admin` *(admin role only)*
-
-| Method | Endpoint      | Description                        |
-|--------|---------------|------------------------------------|
-| GET    | /users        | List all users                     |
-| DELETE | /users/:id    | Delete user + their materials      |
-| GET    | /stats        | Total users & materials count      |
+### 3. AI Services (Protected)
+*   **AI Answer Generator** (`POST /api/ai/answer`)
+    *   *Payload*: `{ "question": "What is Artificial Intelligence?" }`
+    *   *Response*: `{ "success": true, "answer": "..." }`
+*   **AI FAQ Generator** (`POST /api/ai/generate-faq`)
+    *   *Payload*: `{ "topic": "MongoDB" }`
+    *   *Response*: `{ "success": true, "question": "...", "answer": "..." }`
+    *   *Note*: The returned question-answer pair can be stored by passing it to the `POST /api/faqs` endpoint.
 
 ---
 
-## Cookie Details
+## Testing with Postman
 
-| Cookie         | Expiry   | Flags                        |
-|----------------|----------|------------------------------|
-| `accessToken`  | 15 min   | httpOnly, sameSite=strict    |
-| `refreshToken` | 7 days   | httpOnly, sameSite=strict    |
-
-In production, both cookies have `secure: true`.
+An pre-configured Postman Collection is included in the project root:
+*   **File**: `AI_FAQ_Assistant_API.postman_collection.json`
+*   **Import**: Import this file directly into Postman.
+*   **Environment Setup**: It defines two collection variables:
+    *   `baseUrl`: Defaulted to `http://localhost:5000`
+    *   `token`: Left blank initially.
+*   **Automatic JWT Token Saving**: The **User Login** request contains a test script that automatically extracts the JWT token upon a successful response and updates the collection's `token` variable. Subsequent protected requests will automatically read from `{{token}}` in their Authorization tab.
